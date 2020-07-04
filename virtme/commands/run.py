@@ -77,6 +77,8 @@ def make_parser() -> argparse.ArgumentParser:
                    help='Set guest memory and qemu -m flag.')
     g.add_argument('--name', action='store', default=None,
                    help='Set guest hostname and qemu -name flag.')
+    g.add_argument('--smp', action='store', default=1, type=int,
+                   help='Set the number of guest vCPUs, and also the number of queues of virtio-blk if --blk-disks argument is being used.')
 
     g = parser.add_argument_group(
         title='Scripting',
@@ -399,11 +401,18 @@ def do_it() -> int:
     if args.memory:
         qemuargs.extend(['-m', args.memory])
 
+    if args.smp:
+        if args.smp <= 0:
+            arg_fail('--smp only accepts number bigger than 0')
+        qemuargs.extend(['-smp', str(args.smp)])
+
     if args.blk_disks:
+        dev = 'virtio-blk-pci,drive=drive%d,serial=virtme_disk_blk%d'
+        if args.smp:
+            dev += ',num-queues=%d' % (args.smp)
         for index, disk in enumerate(args.blk_disks.split(',')):
             qemuargs.extend(['-drive', 'if=none,id=drive%d,file=%s' % (index, disk),
-                             '-device',
-                             'virtio-blk-pci,drive=drive%d,serial=virtme_disk_blk%d' % (index, index)])
+                             '-device', dev % (index, index)])
 
     if args.disk:
         qemuargs.extend(['-device', '%s,id=scsi' % arch.virtio_dev_type('scsi')])
